@@ -1,0 +1,22 @@
+{
+  "name": "telefon-backend",
+  "version": "1.0.0",
+  "description": "Tele-FON backend services",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "watch": "./node_modules/nodemon/bin/nodemon.js ./index.js --harmony-async-await"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "body-parser": "^1.18.2",
+    "cors": "^2.8.4",
+    "express": "^4.16.2",
+    "express-validator": "^4.3.0",
+    "http-status-codes": "^1.3.0"
+  },
+  "devDependencies": {
+    "nodemon": "^1.14.3"
+  }
+}
