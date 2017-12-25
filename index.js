@@ -16,17 +16,12 @@ app.use(cors({
 }));
 app.use(bodyParser.json());
 app.use(expressValidator());
+app.use(express.static('public'));
 
 (async () => {
     const dbClient = await MongoClient.connect(url);
     const db = dbClient.db(dbName);
     const therapistCollection = db.collection('therapist');
-
-    function exceptionHandler(err, req, res) {
-        console.error('an error occured');
-        console.error(err);
-        res.sendStatus(HttpStatus.INTERNAL_SERVER_ERROR);
-    }
 
     app.get('/therapist', async (req, res, next) => (async (req, res) => {
         const list = await therapistCollection.find({}).toArray();
@@ -72,6 +67,11 @@ app.use(expressValidator());
         }
     })(req, res).catch(next));
 
-    app.use((err, req, res, next) => exceptionHandler(err, req, res));
+    app.use((err, req, res, next) =>  {
+        console.error('an error occured');
+        console.error(err);
+        res.sendStatus(HttpStatus.INTERNAL_SERVER_ERROR);
+    });
+
     app.listen(3000, () => console.log('listening...'))
 })();
