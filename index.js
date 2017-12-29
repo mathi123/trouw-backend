@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const expressValidator = require('express-validator');
+const fileUpload = require('express-fileupload');
 const HttpStatus = require('http-status-codes');
 const uuid = require('uuid/v4');
 const path = require('path');
@@ -19,6 +20,7 @@ app.use(cors({
     exposedHeaders: ['Content-Type', 'Authorization'],
 }));
 app.use(bodyParser.json());
+app.use(fileUpload());
 var upperBound = '1gb';
 app.use(bodyParser.raw({limit: upperBound}));
 app.use(expressValidator());
@@ -37,9 +39,13 @@ app.use('/public', express.static('public'));
 
     app.get('/api/user', async (req, res, next) => (async (req, res) => {
         const isTherapistFilter = req.query['isTherapist'];
+        const therapistId = req.query['therapist'];
         const filter = {};
         if(isTherapistFilter){
             filter.isTherapist = isTherapistFilter === 'true';
+        }
+        if(therapistId) {
+            filter.therapistId = therapistId;
         }
         const list = await userCollection.find(filter).toArray();
         res.json(list);
@@ -63,10 +69,12 @@ app.use('/public', express.static('public'));
         if(existingUser !== null){
             res.sendStatus(HttpStatus.CONFLICT);
         }else{
+            if(user.therapistId !== null) {
+                user.therapistId = ObjectId(user.therapistId);
+            }
             const result = await userCollection.insertOne(user);
             if(result.insertedCount === 1){
-                res.set('Location', `/api/user/${result.insertedId}`);
-                res.sendStatus(HttpStatus.CREATED);
+                res.json(result.insertedId);
             }else{
                 res.sendStatus(HttpStatus.INTERNAL_SERVER_ERROR);
             }
@@ -76,8 +84,12 @@ app.use('/public', express.static('public'));
     app.put('/api/user/:id', (req, res, next) => (async (req, res) => {
         const id = ObjectId(req.params['id']);
         const user = req.body;
-        const result = await userCollection.updateOne(id, user);
-        if(result.upsertedCount === 1){
+
+        delete user._id;
+        delete user.therapistId;
+
+        const result = await userCollection.updateOne({ _id: id }, { $set: user });
+        if(result.matchedCount === 1){
             res.sendStatus(HttpStatus.OK);
         }else{
             res.sendStatus(HttpStatus.INTERNAL_SERVER_ERROR);
@@ -99,12 +111,38 @@ app.use('/public', express.static('public'));
         const patientFilter = req.query['patient'];
         const filter = {};
         if(therapistFilter){
-            filter.therapistId = therapistFilter;
+            filter.therapistId = ObjectId(therapistFilter);
         }
         if(patientFilter){
-            filter.patientId = patientFilter;
+            filter.patientId = ObjectId(patientFilter);
         }
-        const list = await therapyCollection.find(filter).toArray();
+        const list = await therapyCollection.aggregate([
+            {
+                $match: filter
+            },
+            {
+                $lookup: {
+                    from: "user",
+                    localField: "patientId",
+                    foreignField: "_id",
+                    as: "patient"
+                }
+            },
+            {
+                $lookup: {
+                    from: "user",
+                    localField: "therapistId",
+                    foreignField: "_id",
+                    as: "therapist"
+                }
+            },
+        ]).toArray();
+
+        list.forEach(element => {
+            element.patient = element.patient[0];
+            element.therapist = element.therapist[0];
+        });
+
         res.json(list);
     })(req, res).catch(next));
 
@@ -116,10 +154,13 @@ app.use('/public', express.static('public'));
 
     app.post('/api/therapy', (req, res, next) => (async (req, res) => {
         const therapy = req.body;
+
+        therapy.therapistId = ObjectId(therapy.therapistId);
+        therapy.patientId = ObjectId(therapy.patientId);
+
         const result = await therapyCollection.insertOne(therapy);
         if(result.insertedCount === 1){
-            res.set('Location', `/api/therapy/${result.insertedId}`);
-            res.sendStatus(HttpStatus.CREATED);
+            res.json(result.insertedId);
         }else{
             res.sendStatus(HttpStatus.INTERNAL_SERVER_ERROR);
         }
@@ -127,9 +168,14 @@ app.use('/public', express.static('public'));
 
     app.put('/api/therapy/:id', (req, res, next) => (async (req, res) => {
         const id = ObjectId(req.params['id']);
-        const therapist = req.body;
-        const result = await therapyCollection.updateOne(id, therapist);
-        if(result.upsertedCount === 1){
+        const therapy = req.body;
+
+        delete therapy.therapistId;
+        delete therapy.patientId;
+        delete therapy._id;
+
+        const result = await therapyCollection.updateOne({ _id: id }, { $set: therapy });
+        if(result.matchedCount === 1){
             res.sendStatus(HttpStatus.OK);
         }else{
             res.sendStatus(HttpStatus.INTERNAL_SERVER_ERROR);
@@ -156,7 +202,7 @@ app.use('/public', express.static('public'));
         const filter = { 
             $or: [
                 { 
-                    therapistId: therapistFilter,
+                    therapistId: ObjectId(therapistFilter),
                     isGlobal: false,
                 },
                 {
@@ -176,10 +222,12 @@ app.use('/public', express.static('public'));
 
     app.post('/api/exercise', (req, res, next) => (async (req, res) => {
         const exercise = req.body;
+
+        exercise.therapistId = ObjectId(exercise.therapistId);
+
         const result = await exerciseCollection.insertOne(exercise);
         if(result.insertedCount === 1){
-            res.set('Location', `/api/exercise/${result.insertedId}`);
-            res.sendStatus(HttpStatus.CREATED);
+            res.json(result.insertedId);
         }else{
             res.sendStatus(HttpStatus.INTERNAL_SERVER_ERROR);
         }
@@ -188,8 +236,13 @@ app.use('/public', express.static('public'));
     app.put('/api/exercise/:id', (req, res, next) => (async (req, res) => {
         const id = ObjectId(req.params['id']);
         const exercise = req.body;
-        const result = await exerciseCollection.updateOne(id, exercise);
-        if(result.upsertedCount === 1){
+        
+        delete exercise._id;
+        delete exercise.therapistId;
+
+        const result = await exerciseCollection.updateOne({ _id: id }, { $set: exercise } );
+
+        if(result.matchedCount === 1 ){
             res.sendStatus(HttpStatus.OK);
         }else{
             res.sendStatus(HttpStatus.INTERNAL_SERVER_ERROR);
@@ -214,7 +267,7 @@ app.use('/public', express.static('public'));
             return;
         }
         const filter = { 
-            exerciseId: exerciseFilter,
+            exerciseId: ObjectId(exerciseFilter),
         };
         const list = await taskCollection.find(filter).toArray();
         res.json(list);
@@ -228,10 +281,12 @@ app.use('/public', express.static('public'));
 
     app.post('/api/task', (req, res, next) => (async (req, res) => {
         const task = req.body;
+
+        task.exerciseId = ObjectId(task.exerciseId);
+
         const result = await taskCollection.insertOne(task);
         if(result.insertedCount === 1){
-            res.set('Location', `/api/task/${result.insertedId}`);
-            res.sendStatus(HttpStatus.CREATED);
+            res.json(result.insertedId);
         }else{
             res.sendStatus(HttpStatus.INTERNAL_SERVER_ERROR);
         }
@@ -240,8 +295,12 @@ app.use('/public', express.static('public'));
     app.put('/api/task/:id', (req, res, next) => (async (req, res) => {
         const id = ObjectId(req.params['id']);
         const task = req.body;
-        const result = await taskCollection.updateOne(id, task);
-        if(result.upsertedCount === 1){
+
+        delete task._id;
+        delete task.exerciseId;
+
+        const result = await taskCollection.updateOne({ _id: id }, { $set: task });
+        if(result.matchedCount === 1){
             res.sendStatus(HttpStatus.OK);
         }else{
             res.sendStatus(HttpStatus.INTERNAL_SERVER_ERROR);
@@ -257,7 +316,7 @@ app.use('/public', express.static('public'));
             res.sendStatus(HttpStatus.NOT_FOUND);
         }
     })(req, res).catch(next));
-
+/*
     app.get('/api/step', async (req, res, next) => (async (req, res) => {
         const taskFilter = req.query['task'];
         if(!taskFilter){
@@ -266,7 +325,7 @@ app.use('/public', express.static('public'));
             return;
         }
         const filter = { 
-            taskId: taskFilter,
+            taskId: ObjectId(taskFilter),
         };
         const list = await stepCollection.find(filter).toArray();
         res.json(list);
@@ -280,10 +339,12 @@ app.use('/public', express.static('public'));
 
     app.post('/api/step', (req, res, next) => (async (req, res) => {
         const step = req.body;
+
+        step.taskId = ObjectId(step.taskId);
+
         const result = await stepCollection.insertOne(step);
         if(result.insertedCount === 1){
-            res.set('Location', `/api/step/${result.insertedId}`);
-            res.sendStatus(HttpStatus.CREATED);
+            res.json(result.insertedId);
         }else{
             res.sendStatus(HttpStatus.INTERNAL_SERVER_ERROR);
         }
@@ -292,8 +353,12 @@ app.use('/public', express.static('public'));
     app.put('/api/step/:id', (req, res, next) => (async (req, res) => {
         const id = ObjectId(req.params['id']);
         const step = req.body;
-        const result = await stepCollection.updateOne(id, step);
-        if(result.upsertedCount === 1){
+
+        delete step._id;
+        delete step.taskId;
+
+        const result = await stepCollection.updateOne({ _id: id }, { $set: step });
+        if(result.matchedCount === 1){
             res.sendStatus(HttpStatus.OK);
         }else{
             res.sendStatus(HttpStatus.INTERNAL_SERVER_ERROR);
@@ -308,7 +373,7 @@ app.use('/public', express.static('public'));
         }else{
             res.sendStatus(HttpStatus.NOT_FOUND);
         }
-    })(req, res).catch(next));
+    })(req, res).catch(next));*/
 
     app.get('/api/assignment', async (req, res, next) => (async (req, res) => {
         const therapyFilter = req.query['therapy'];
@@ -318,9 +383,24 @@ app.use('/public', express.static('public'));
             return;
         }
         const filter = { 
-            therapyId: therapyFilter,
+            therapyId: ObjectId(therapyFilter),
         };
-        const list = await assignmentCollection.find(filter).toArray();
+        const list = await assignmentCollection.aggregate([
+            {
+                $match: filter,
+            },
+            {
+                $lookup: {
+                    from: 'exercise',
+                    localField: 'exerciseId',
+                    foreignField: '_id',
+                    as: 'exercise'
+                }
+            }
+        ]).toArray();
+        for(let assignment of list){
+            assignment.exercise = assignment.exercise[0];
+        }
         res.json(list);
     })(req, res).catch(next));
 
@@ -331,11 +411,14 @@ app.use('/public', express.static('public'));
     })(req, res).catch(next));
 
     app.post('/api/assignment', (req, res, next) => (async (req, res) => {
-        const step = req.body;
-        const result = await assignmentCollection.insertOne(step);
+        const assignment = req.body;
+
+        assignment.therapyId = ObjectId(assignment.therapyId);
+        assignment.exerciseId = ObjectId(assignment.exerciseId);
+
+        const result = await assignmentCollection.insertOne(assignment);
         if(result.insertedCount === 1){
-            res.set('Location', `/api/assignment/${result.insertedId}`);
-            res.sendStatus(HttpStatus.CREATED);
+            res.json(result.insertedId);
         }else{
             res.sendStatus(HttpStatus.INTERNAL_SERVER_ERROR);
         }
@@ -344,8 +427,16 @@ app.use('/public', express.static('public'));
     app.put('/api/assignment/:id', (req, res, next) => (async (req, res) => {
         const id = ObjectId(req.params['id']);
         const assignment = req.body;
-        const result = await assignmentCollection.updateOne(id, assignment);
-        if(result.upsertedCount === 1){
+
+        delete assignment._id;
+        delete assignment.therapyId;
+
+        if(assignment.executionId) {
+            assignment.executionId = ObjectId(assignment.executionId);            
+        }
+
+        const result = await assignmentCollection.updateOne({ _id: id }, { $set: assignment });
+        if(result.matchedCount === 1){
             res.sendStatus(HttpStatus.OK);
         }else{
             res.sendStatus(HttpStatus.INTERNAL_SERVER_ERROR);
@@ -382,6 +473,23 @@ app.use('/public', express.static('public'));
         
     })(req, res).catch(next));
 
+    app.post('/api/file-upload', (req, res, next) => (async (req, res) => {
+        if (!req.files){
+            throw new Error('no files found');
+        }
+        const format = req.query['extension'];
+        // The name of the input field (i.e. "sampleFile") is used to retrieve the uploaded file
+        const sampleFile = req.files.uploadFile;
+        const fileId = `${uuid()}.${format}`;
+
+        // Use the mv() method to place the file somewhere on your server
+        const targetPath = path.join(uploadPath, fileId);
+        
+        await sampleFile.mv(targetPath);
+        
+        res.json(fileId);
+    })(req, res).catch(next));
+ 
     app.post('/api/file', (req, res, next) => (async (req, res) => {
         const id = req.body['id'];
         const parts = req.body['parts'];
@@ -394,25 +502,14 @@ app.use('/public', express.static('public'));
         }
         const fileId = `${id}.webm`;
         const filePath = path.join(uploadPath, fileId);
-        for(let part = 1; part < parts; part++){
+        for(let part = 0; part < parts; part++){
             const partFilePath = path.join(fullPath, `${part}.temp`);
             const data = fs.readFileSync(partFilePath);
             fs.appendFileSync(filePath, data);
             fs.unlinkSync(partFilePath);
         }
         fs.rmdirSync(fullPath);
-        const file = {
-            format: format,
-            pathInUploadFolder: fileId,
-            createdOn: new Date()
-        };
-        const result = await fileCollection.insertOne(file);
-        if(result.insertedCount === 1){
-            res.set('Location', `/api/file/${result.insertedId}`);
-            res.sendStatus(HttpStatus.CREATED);
-        }else{
-            res.sendStatus(HttpStatus.INTERNAL_SERVER_ERROR);
-        }
+        res.json(fileId);
     })(req, res).catch(next));
 
     app.get('/api/file/:id', (req, res, next) => (async (req, res) => {
