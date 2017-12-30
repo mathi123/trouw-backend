@@ -10,7 +10,8 @@ const fs = require('fs');
 
 const ObjectId = require('mongodb').ObjectID
 const MongoClient = require('mongodb').MongoClient;
-const url = 'mongodb://localhost:27017';
+const mongoHost =  process.env.MONGO_SERVICE || 'localhost';
+const url = `mongodb://${mongoHost}:27017`;
 const dbName = 'telefon';
 const app = express();
 const uploadPath = path.join(__dirname, 'public', 'files');

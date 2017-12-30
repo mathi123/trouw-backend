@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "watch": "./node_modules/nodemon/bin/nodemon.js ./index.js --harmony-async-await"
+    "watch": "./node_modules/nodemon/bin/nodemon.js ./index.js --harmony-async-await",
+    "start": "node  ./index.js --harmony-async-await"
   },
   "author": "",
   "license": "ISC",
