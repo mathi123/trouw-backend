@@ -46,7 +46,7 @@ app.use('/public', express.static('public'));
             filter.isTherapist = isTherapistFilter === 'true';
         }
         if(therapistId) {
-            filter.therapistId = therapistId;
+            filter.therapistId = ObjectId(therapistId);
         }
         const list = await userCollection.find(filter).toArray();
         res.json(list);
