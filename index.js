@@ -500,7 +500,7 @@ app.use('/public', express.static('public'));
         if(!fs.existsSync(fullPath)) {
             throw new Error('no parts found');
         }
-        const fileId = `${id}.webm`;
+        const fileId = `${id}.${format}`;
         const filePath = path.join(uploadPath, fileId);
         for(let part = 0; part < parts; part++){
             const partFilePath = path.join(fullPath, `${part}.temp`);
