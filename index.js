@@ -10,7 +10,7 @@ const fs = require('fs');
 
 const ObjectId = require('mongodb').ObjectID
 const MongoClient = require('mongodb').MongoClient;
-const mongoHost =  process.env.MONGO_SERVICE || 'localhost';
+const mongoHost =  process.env.MONGO_SERVICE_HOST || 'localhost';
 const url = `mongodb://${mongoHost}:27017`;
 const dbName = 'telefon';
 const app = express();
