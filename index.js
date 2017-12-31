@@ -7,6 +7,7 @@ const HttpStatus = require('http-status-codes');
 const uuid = require('uuid/v4');
 const path = require('path');
 const fs = require('fs');
+const https = require('https');
 
 const ObjectId = require('mongodb').ObjectID
 const MongoClient = require('mongodb').MongoClient;
@@ -26,6 +27,11 @@ var upperBound = '1gb';
 app.use(bodyParser.raw({limit: upperBound}));
 app.use(expressValidator());
 app.use('/public', express.static('public'));
+
+
+const privateKey  = fs.readFileSync('telefon.mitasco.be.key', 'utf8');
+const certificate = fs.readFileSync('telefon.mitasco.be.crt', 'utf8');
+const credentials = {key: privateKey, cert: certificate};
 
 (async () => {
     const dbClient = await MongoClient.connect(url);
@@ -637,5 +643,7 @@ app.use('/public', express.static('public'));
         res.sendStatus(HttpStatus.INTERNAL_SERVER_ERROR);
     });
 
-    app.listen(3000, () => console.log('listening...'))
+
+    const httpsServer = https.createServer(credentials, app);
+    httpsServer.listen(3000, () => console.log('listening...'))
 })();
