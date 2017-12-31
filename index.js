@@ -167,6 +167,66 @@ app.use('/public', express.static('public'));
         }
     })(req, res).catch(next));
 
+    app.put('/api/therapy/:id/start', (req, res, next) => (async (req, res) => {
+        const id = ObjectId(req.params['id']);
+        const therapy = await therapyCollection.findOne(id);
+        if (therapy.hasStarted === true) {
+            throw new Error('Therapy has already started');
+        }
+        console.log('updating therapy');
+        const result = await therapyCollection.updateOne({ _id: id }, { $set: {
+            hasStarted: true
+        } });
+        console.log('getting assignments');
+
+        const assignments = await assignmentCollection.find({
+            therapyId: id
+        }).toArray();
+        
+        for(const assignment of assignments) {
+            const exerciseId = ObjectId(assignment.exerciseId);
+        console.log('get exercise');
+            
+            const exercise = await exerciseCollection.findOne(exerciseId);
+        console.log('get tasks');
+            
+            const tasks = await taskCollection.find({
+                exerciseId: exerciseId
+            }).toArray();
+
+            const execution = {
+                title: exercise.title,
+                description: exercise.description,
+            };
+        console.log('insert execution');
+            
+            const insertedExecution = await exerciseCollection.insertOne(execution);
+
+            for(const task of tasks) {
+                delete task._id;
+                task.exerciseId = insertedExecution.insertedId;
+            }
+        console.log('insert task copies');
+            
+            await taskCollection.insertMany(tasks);
+        console.log('updating assignment with execution id');
+            
+            await assignmentCollection.updateOne({
+                _id: ObjectId(assignment._id)
+            }, {
+                $set: {
+                    executionId: insertedExecution.insertedId
+                }
+            });
+        }
+
+        if(result.matchedCount === 1){
+            res.sendStatus(HttpStatus.OK);
+        }else{
+            res.sendStatus(HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    })(req, res).catch(next));
+
     app.put('/api/therapy/:id', (req, res, next) => (async (req, res) => {
         const id = ObjectId(req.params['id']);
         const therapy = req.body;
