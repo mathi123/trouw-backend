@@ -116,6 +116,7 @@ app.use('/public', express.static('public'));
         }
         if(patientFilter){
             filter.patientId = ObjectId(patientFilter);
+            filter.hasStarted = true;
         }
         const list = await therapyCollection.aggregate([
             {
@@ -457,18 +458,55 @@ app.use('/public', express.static('public'));
                     foreignField: '_id',
                     as: 'exercise'
                 }
+            },
+            {
+                $lookup: {
+                    from: 'exercise',
+                    localField: 'executionId',
+                    foreignField: '_id',
+                    as: 'execution'
+                }
             }
         ]).toArray();
         for(let assignment of list){
             assignment.exercise = assignment.exercise[0];
+            assignment.execution = assignment.execution[0];
         }
         res.json(list);
     })(req, res).catch(next));
 
     app.get('/api/assignment/:id', (req, res, next) => (async (req, res) => {
         const id = ObjectId(req.params['id']);   
-        const assignment = await assignmentCollection.findOne(id);
-        res.json(assignment);
+        const filter = { 
+            _id: id,
+        };
+        const list = await assignmentCollection.aggregate([
+            {
+                $match: filter,
+            },
+            {
+                $lookup: {
+                    from: 'exercise',
+                    localField: 'exerciseId',
+                    foreignField: '_id',
+                    as: 'exercise'
+                }
+            },
+            {
+                $lookup: {
+                    from: 'exercise',
+                    localField: 'executionId',
+                    foreignField: '_id',
+                    as: 'execution'
+                }
+            }
+        ]).toArray();
+        for(let assignment of list){
+            assignment.exercise = assignment.exercise[0];
+            assignment.execution = assignment.execution[0];
+        }
+
+        res.json(list[0]);
     })(req, res).catch(next));
 
     app.post('/api/assignment', (req, res, next) => (async (req, res) => {
@@ -476,6 +514,7 @@ app.use('/public', express.static('public'));
 
         assignment.therapyId = ObjectId(assignment.therapyId);
         assignment.exerciseId = ObjectId(assignment.exerciseId);
+        assignment.executionId = ObjectId(assignment.executionId);
 
         const result = await assignmentCollection.insertOne(assignment);
         if(result.insertedCount === 1){
@@ -494,6 +533,9 @@ app.use('/public', express.static('public'));
 
         if(assignment.executionId) {
             assignment.executionId = ObjectId(assignment.executionId);            
+        }
+        if(assignment.exerciseId) {
+            assignment.exerciseId = ObjectId(assignment.exerciseId);            
         }
 
         const result = await assignmentCollection.updateOne({ _id: id }, { $set: assignment });
