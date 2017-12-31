@@ -29,8 +29,8 @@ app.use(expressValidator());
 app.use('/public', express.static('public'));
 
 
-const privateKey  = fs.readFileSync('telefon.mitasco.be.key', 'utf8');
-const certificate = fs.readFileSync('telefon.mitasco.be.crt', 'utf8');
+const privateKey  = fs.readFileSync('telefon-api.mitasco.be.key', 'utf8');
+const certificate = fs.readFileSync('telefon-api.mitasco.be.crt', 'utf8');
 const credentials = {key: privateKey, cert: certificate};
 
 (async () => {
