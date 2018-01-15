@@ -26,42 +26,24 @@ app.use(fileUpload());
 var upperBound = '1gb';
 app.use(bodyParser.raw({limit: upperBound}));
 app.use(expressValidator());
-app.use('/public', express.static('public'));
 
 (async () => {
     const dbClient = await MongoClient.connect(url);
     const db = dbClient.db(dbName);
-    const userCollection = db.collection('user');
+    const userCollection = db.collection('guests');
 
     app.get('/api/user', async (req, res, next) => (async (req, res) => {
-        const isTherapistFilter = req.query['isTherapist'];
-        const therapistId = req.query['therapist'];
-        const filter = {};
-        if(isTherapistFilter){
-            filter.isTherapist = isTherapistFilter === 'true';
-        }
-        if(therapistId) {
-            filter.therapistId = ObjectId(therapistId);
-        }
-        const list = await userCollection.find(filter).toArray();
+        const list = await userCollection.find().toArray();
         res.json(list);
     })(req, res).catch(next));
 
     app.post('/api/user', (req, res, next) => (async (req, res) => {
         const user = req.body;
-        const existingUser = await userCollection.findOne({ email: user.email });
-        if(existingUser !== null){
-            res.sendStatus(HttpStatus.CONFLICT);
+        const result = await userCollection.insertOne(user);
+        if(result.insertedCount === 1){
+            res.json(result.insertedId);
         }else{
-            if(user.therapistId !== null) {
-                user.therapistId = ObjectId(user.therapistId);
-            }
-            const result = await userCollection.insertOne(user);
-            if(result.insertedCount === 1){
-                res.json(result.insertedId);
-            }else{
-                res.sendStatus(HttpStatus.INTERNAL_SERVER_ERROR);
-            }
+            res.sendStatus(HttpStatus.INTERNAL_SERVER_ERROR);
         }
     })(req, res).catch(next));
 
