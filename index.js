@@ -15,7 +15,6 @@ const mongoHost =  process.env.MONGO_SERVICE_HOST || 'localhost';
 const url = `mongodb://${mongoHost}:27017`;
 const dbName = 'telefon';
 const app = express();
-const uploadPath = path.join(__dirname, 'public', 'files');
 
 app.use(cors({
     allowedHeaders: ['Content-Type', 'Authorization'],
